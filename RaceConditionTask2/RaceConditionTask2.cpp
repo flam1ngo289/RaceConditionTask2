@@ -8,10 +8,16 @@
 #include <sstream>
 #include <windows.h>
 
-
 std::mutex console_mutex;
 
-void thread_function(int thread_num, int length, int min_delay, int max_delay) {
+void move_cursor_to(int x, int y) {
+    COORD coord;
+    coord.X = x;
+    coord.Y = y;
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+}
+
+void thread_function(int thread_num, int length, int min_delay, int max_delay, int y_pos) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(min_delay, max_delay);
@@ -28,16 +34,17 @@ void thread_function(int thread_num, int length, int min_delay, int max_delay) {
         bool error_occurred = error_dis(gen) == 0;
         {
             std::lock_guard<std::mutex> lock(console_mutex);
+            move_cursor_to(0, y_pos);  
             if (error_occurred) {
-                std::cout << "\033[31m"; 
-                progress << "X";         
+                std::cout << "\033[31m";
+                progress << "X";
             }
             else {
-                std::cout << "\033[32m"; 
-                progress << "#";         
+                std::cout << "\033[32m";
+                progress << "#";
             }
-            std::cout << "\033[0m";      
-            std::cout << "\r" << progress.str() << std::setw(length - i) << "]" << std::flush;
+            std::cout << "\033[0m";
+            std::cout << progress.str() << std::setw(length - i) << "]" << std::flush;
         }
     }
 
@@ -46,7 +53,8 @@ void thread_function(int thread_num, int length, int min_delay, int max_delay) {
 
     {
         std::lock_guard<std::mutex> lock(console_mutex);
-        std::cout << "\r" << progress.str() << std::setw(length - 1) << "] - выполнено за "
+        move_cursor_to(0, y_pos); 
+        std::cout << progress.str() << std::setw(length - 1) << "] - выполнено за "
             << elapsed.count() << "s\n";
     }
 }
@@ -61,7 +69,7 @@ int main() {
     std::vector<std::thread> threads;
 
     for (int i = 0; i < num_threads; ++i) {
-        threads.emplace_back(thread_function, i + 1, bar_length, min_delay, max_delay);
+        threads.emplace_back(thread_function, i + 1, bar_length, min_delay, max_delay, i);
     }
 
     for (auto& thread : threads) {
